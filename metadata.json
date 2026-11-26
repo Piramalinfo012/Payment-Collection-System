@@ -1,0 +1,6 @@
+{
+  "name": "Piramal Petroleum – Payment Collection & Recovery",
+  "description": "Enterprise Payment Collection & Recovery Management System for Piramal Petroleum Pvt. Ltd. powered by Google Sheets, Google Apps Script, and Tally export synchronization.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
