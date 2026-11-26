@@ -259,7 +259,7 @@ export async function fetchWorkspaceFromAppsScript(
           createdAt: String(
             row.craetedDateAndTime || row.createdDateAndTime || formatSheetTimestamp()
           ),
-          pageAccess: 'ALL',
+          pageAccess: parsePageAccess(String(row.pageAccess || ''), role),
         };
       });
   }

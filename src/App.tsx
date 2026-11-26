@@ -994,19 +994,18 @@ export default function App() {
         );
       }
     } else if (integration.mode === 'apps_script' && currentUser) {
-      await callAppsScriptApi(
+      await saveRowToAppsScriptSheet(
         integration.appsScriptUrl,
-        'CREATE_USER',
+        'USER',
+        'insert',
         {
-          id: created.id,
-          name: created.name,
-          password: created.password || created.demoPin || '1234',
-          role: created.role,
-          createdAt: created.createdAt || formatSheetTimestamp(),
+          userName: created.name,
+          userId: created.id,
+          userPassword: created.password || created.demoPin || '1234',
+          role: created.role === 'Admin' ? 'Admin' : 'User',
+          craetedDateAndTime: created.createdAt || formatSheetTimestamp(),
           pageAccess: serializePageAccess(created.pageAccess),
-        },
-        currentUser.email,
-        currentUser.role
+        }
       );
     }
 
