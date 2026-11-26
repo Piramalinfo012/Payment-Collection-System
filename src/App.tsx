@@ -245,15 +245,15 @@ export default function App() {
     }
   }, []);
 
-  // Strict RBAC URL Hash Guard (prevents Collection Users from accessing Admin routes or other users' parties)
+  // Strict RBAC URL Path Guard (clean URLs without '#')
   useEffect(() => {
-    const handleHashChange = () => {
+    const handleRouteChange = () => {
       if (!currentUser) return;
-      const hash = window.location.hash.replace(/^#\/?/, '');
-      if (!hash) return;
+      const route = window.location.pathname.replace(/^\/+/, '');
+      if (!route) return;
 
-      if (hash.startsWith('party/')) {
-        const code = decodeURIComponent(hash.slice('party/'.length));
+      if (route.startsWith('party/')) {
+        const code = decodeURIComponent(route.slice('party/'.length));
         const target = parties.find((p) => p.customerCode === code);
         if (!target || !canUserAccessParty(target, currentUser)) {
           notify(
@@ -261,7 +261,7 @@ export default function App() {
             'Access Denied',
             'You are only authorized to view parties assigned to your account.'
           );
-          window.location.hash = '#/dashboard';
+          window.history.replaceState(null, '', '/dashboard');
           setSelectedPartyCode(null);
           return;
         }
@@ -269,7 +269,7 @@ export default function App() {
         return;
       }
 
-      const candidate = hash as NavSection;
+      const candidate = route as NavSection;
       const validItem = NAV_ITEMS.find((n) => n.id === candidate);
       if (validItem) {
         if (!hasPageAccess(currentUser, candidate)) {
@@ -278,7 +278,7 @@ export default function App() {
             'Restricted Route',
             'You do not have permission to view that page.'
           );
-          window.location.hash = '#/dashboard';
+          window.history.replaceState(null, '', '/dashboard');
           setActiveSection('dashboard');
           return;
         }
@@ -286,8 +286,8 @@ export default function App() {
       }
     };
 
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    window.addEventListener('popstate', handleRouteChange);
+    return () => window.removeEventListener('popstate', handleRouteChange);
   }, [currentUser, parties, notify]);
 
   const navigateTo = useCallback(
@@ -302,7 +302,7 @@ export default function App() {
       }
       setActiveSection(section);
       setMobileNavOpen(false);
-      window.location.hash = `#/${section}`;
+      window.history.pushState(null, '', `/${section}`);
     },
     [currentUser, notify]
   );
@@ -450,7 +450,7 @@ export default function App() {
     setGoogleEmail(null);
     setSelectedPartyCode(null);
     setActiveSection('dashboard');
-    window.location.hash = '';
+    window.history.replaceState(null, '', '/');
   };
 
   // STRICT RBAC SCOPED DATA
@@ -515,7 +515,7 @@ export default function App() {
       }
       setSelectedPartyCode(party.customerCode);
       setShowSearchDropdown(false);
-      window.location.hash = `#/party/${encodeURIComponent(party.customerCode)}`;
+      window.history.pushState(null, '', `/party/${encodeURIComponent(party.customerCode)}`);
     },
     [currentUser, notify]
   );
@@ -1707,7 +1707,7 @@ export default function App() {
         party={selectedParty}
         onClose={() => {
           setSelectedPartyCode(null);
-          window.location.hash = `#/${activeSection}`;
+          window.history.pushState(null, '', `/${activeSection}`);
         }}
         followUps={scopedWorkspace.followUps}
         payments={scopedWorkspace.payments}
