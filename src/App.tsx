@@ -1334,6 +1334,9 @@ export default function App() {
               <LogOut className="w-4 h-4" />
             </button>
           </div>
+          <p className="mt-2 text-center text-[10px] font-medium text-stone-500">
+            Developed by <span className="text-[#C2410C] font-semibold">Deepak Sahu</span>
+          </p>
         </div>
       </aside>
 

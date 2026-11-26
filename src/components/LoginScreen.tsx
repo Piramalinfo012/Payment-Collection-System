@@ -358,6 +358,9 @@ export function LoginScreen({
       {/* Quiet Footer */}
       <footer className="relative z-10 w-full max-w-7xl mx-auto px-6 sm:px-10 py-3 border-t border-[#EFE4D8]/80 text-xs text-stone-500 flex flex-col sm:flex-row items-center justify-between gap-2">
         <span>© 2026 Piramal Petroleum Pvt. Ltd. All rights reserved.</span>
+        <span className="font-medium text-stone-600">
+          Developed by <span className="text-[#C2410C] font-semibold">Deepak Sahu</span>
+        </span>
         <span>Powered by Google Sheets &amp; Apps Script Integration</span>
       </footer>
     </div>
