@@ -96,6 +96,7 @@ const ADMIN_ONLY_SECTIONS: ReadonlySet<NavSection> = new Set([
   'all_parties',
   'user_management',
   'tally_sync',
+  'settings',
 ]);
 
 function hasPageAccess(user: User, section: NavSection): boolean {
@@ -126,7 +127,7 @@ const NAV_ITEMS: NavItemConfig[] = [
   { id: 'reports', label: 'Reports', icon: FileText },
   { id: 'user_performance', label: 'User Performance', icon: BarChart3 },
   { id: 'user_management', label: 'User Management', icon: UserCog, adminOnly: true },
-  { id: 'settings', label: 'Settings', icon: Settings },
+  { id: 'settings', label: 'Settings', icon: Settings, adminOnly: true },
 ];
 
 export default function App() {
