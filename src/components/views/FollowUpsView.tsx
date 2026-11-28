@@ -2,19 +2,26 @@ import React, { useMemo, useState } from 'react';
 import { CalendarClock, CheckCircle2, Clock, IndianRupee, PhoneCall, Plus, Search } from 'lucide-react';
 import { motion } from 'motion/react';
 import {
+  CreditNoteRecord,
   EnrichedParty,
   FollowUp,
   FOLLOW_UP_STATUS_OPTIONS,
+  InvoiceRecord,
+  PaymentReceipt,
   User,
 } from '../../types';
+import { computePartyFifoLedger } from '../../services/recoveryEngine';
 import { formatDateDisplay, formatINR } from '../../utils/formatters';
 import { EmptyState, PaginationBar, StatusText } from '../ui/CommonUI';
-import { EASE_OUT_EXPO, MotionCard } from '../ui/MotionPrimitives';
+import { EASE_OUT_EXPO, MotionCard, SlidingTabs } from '../ui/MotionPrimitives';
 import { PremiumSelect } from '../ui/PremiumSelect';
 
 interface FollowUpsViewProps {
   followUps: FollowUp[];
   parties: EnrichedParty[];
+  invoices?: InvoiceRecord[];
+  payments?: PaymentReceipt[];
+  creditNotes?: CreditNoteRecord[];
   users: User[];
   isAdmin: boolean;
   onAddFollowUp: (party?: EnrichedParty) => void;
@@ -26,16 +33,21 @@ const PAGE_SIZE = 10;
 export function FollowUpsView({
   followUps,
   parties,
+  invoices = [],
+  payments = [],
+  creditNotes = [],
   users,
   isAdmin,
   onAddFollowUp,
   onSelectPartyByCode,
 }: FollowUpsViewProps) {
+  const [activeTab, setActiveTab] = useState<'logs' | 'overdue_bills'>('logs');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [userFilter, setUserFilter] = useState('ALL');
   const [dateFilter, setDateFilter] = useState('');
   const [page, setPage] = useState(1);
+  const [overduePage, setOverduePage] = useState(1);
 
   const userMap = new Map(users.map((u) => [u.id, u.name]));
 
@@ -82,6 +94,95 @@ export function FollowUpsView({
       return 'danger';
     return 'warning';
   };
+
+  const overdueBills = useMemo(() => {
+    const rows: Array<{
+      id: string;
+      party: EnrichedParty;
+      vchNo: string;
+      billDate: string;
+      billAmount: number;
+      pendingAmount: number;
+      ageDays: number;
+      overdueDays: number;
+    }> = [];
+
+    parties.forEach((party) => {
+      if (party.totalOutstanding <= 0) return;
+      const pName = party.partyName.trim().toLowerCase();
+      const pInvoices = invoices.filter(
+        (inv) =>
+          inv.partyCode === party.customerCode ||
+          (pName && inv.partyName.trim().toLowerCase() === pName)
+      );
+      if (pInvoices.length === 0) return;
+
+      const pReceived = payments
+        .filter(
+          (p) =>
+            p.partyCode === party.customerCode ||
+            (pName && p.partyName.trim().toLowerCase() === pName)
+        )
+        .reduce((s, p) => s + p.receivedAmount, 0);
+
+      const pCredits = creditNotes
+        .filter(
+          (c) =>
+            c.partyCode === party.customerCode ||
+            (pName && c.partyName.trim().toLowerCase() === pName)
+        )
+        .reduce((s, c) => s + c.amount, 0);
+
+      const fifo = computePartyFifoLedger(
+        pInvoices,
+        pReceived,
+        pCredits,
+        party.creditDays
+      );
+
+      fifo.items.forEach((item) => {
+        if (item.isOverdue && item.pendingAmount > 0) {
+          rows.push({
+            id: `${party.customerCode}-${item.invoice.id}`,
+            party,
+            vchNo: item.invoice.vchNo,
+            billDate: item.invoice.date,
+            billAmount: item.invoice.amount,
+            pendingAmount: item.pendingAmount,
+            ageDays: item.ageDays,
+            overdueDays: item.overdueDays,
+          });
+        }
+      });
+    });
+
+    return rows.sort((a, b) => b.overdueDays - a.overdueDays);
+  }, [parties, invoices, payments, creditNotes]);
+
+  const filteredOverdueBills = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return overdueBills.filter((row) => {
+      if (userFilter !== 'ALL' && row.party.assignedUserId !== userFilter) {
+        return false;
+      }
+      if (!q) return true;
+      return (
+        row.party.partyName.toLowerCase().includes(q) ||
+        row.party.customerCode.toLowerCase().includes(q) ||
+        row.vchNo.toLowerCase().includes(q)
+      );
+    });
+  }, [overdueBills, search, userFilter]);
+
+  const overdueTotalPages = Math.max(
+    1,
+    Math.ceil(filteredOverdueBills.length / PAGE_SIZE)
+  );
+  const safeOverduePage = Math.min(overduePage, overdueTotalPages);
+  const pagedOverdueBills = filteredOverdueBills.slice(
+    (safeOverduePage - 1) * PAGE_SIZE,
+    safeOverduePage * PAGE_SIZE
+  );
 
   const summaryStats = useMemo(() => {
     const followedUpPartyKeys = new Set(
@@ -236,7 +337,27 @@ export function FollowUpsView({
         </MotionCard>
       </div>
 
-      <MotionCard delay={0.05} className="bg-white border border-[#EAE2D9] rounded-2xl p-4 shadow-[0_4px_16px_-12px_rgba(28,25,23,0.08)] flex flex-wrap items-center gap-3">
+      <MotionCard delay={0.05} className="bg-white border border-[#EAE2D9] rounded-2xl p-4 shadow-[0_4px_16px_-12px_rgba(28,25,23,0.08)] space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <SlidingTabs
+            layoutId="followups-view-tabs"
+            value={activeTab}
+            onChange={(tab) => {
+              setActiveTab(tab);
+              setPage(1);
+              setOverduePage(1);
+            }}
+            options={[
+              { id: 'logs', label: `Follow-up Logs (${followUps.length})` },
+              {
+                id: 'overdue_bills',
+                label: `Overdue Follow up (${overdueBills.length})`,
+              },
+            ]}
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
@@ -245,8 +366,13 @@ export function FollowUpsView({
             onChange={(e) => {
               setSearch(e.target.value);
               setPage(1);
+              setOverduePage(1);
             }}
-            placeholder="Search party, code, or discussion notes..."
+            placeholder={
+              activeTab === 'overdue_bills'
+                ? 'Search party, code, or overdue Vch No...'
+                : 'Search party, code, or discussion notes...'
+            }
             className="w-full pl-9 pr-3 py-2 text-sm border border-[#E2D8CE] rounded-lg focus:outline-none focus:border-[#EA580C]"
           />
         </div>
@@ -300,9 +426,100 @@ export function FollowUpsView({
             Clear date
           </button>
         )}
+        </div>
       </MotionCard>
 
-      {paged.length === 0 ? (
+      {activeTab === 'overdue_bills' ? (
+        pagedOverdueBills.length === 0 ? (
+          <EmptyState
+            icon={CheckCircle2}
+            title="No overdue bills found"
+            description="All invoices matching your filters are either paid via FIFO or within credit period."
+          />
+        ) : (
+          <MotionCard delay={0.1} className="bg-white border border-[#EAE2D9] rounded-xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-[#FAF6F1] border-b border-[#EAE2D9] text-stone-600">
+                  <tr>
+                    <th className="text-left px-4 py-3 font-semibold">Bill Date</th>
+                    <th className="text-left px-4 py-3 font-semibold">Vch No.</th>
+                    <th className="text-left px-4 py-3 font-semibold">Party</th>
+                    <th className="text-right px-4 py-3 font-semibold">Credit Period</th>
+                    <th className="text-right px-4 py-3 font-semibold">Bill Amt</th>
+                    <th className="text-right px-4 py-3 font-semibold">Pending Amt (FIFO)</th>
+                    <th className="text-left px-4 py-3 font-semibold">Overdue Status</th>
+                    <th className="text-left px-4 py-3 font-semibold">Officer</th>
+                    <th className="text-right px-4 py-3 font-semibold">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#F4ECE3]">
+                  {pagedOverdueBills.map((row) => (
+                    <tr
+                      key={row.id}
+                      onClick={() => onSelectPartyByCode(row.party.customerCode)}
+                      className="hover:bg-orange-50/50 cursor-pointer transition-colors"
+                    >
+                      <td className="px-4 py-3 whitespace-nowrap font-mono text-stone-700">
+                        {formatDateDisplay(row.billDate)}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap font-mono font-semibold text-stone-900">
+                        {row.vchNo}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="font-semibold text-stone-900">
+                          {row.party.partyName}
+                        </div>
+                        <div className="text-[11px] font-mono text-stone-400">
+                          {row.party.customerCode}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-right whitespace-nowrap font-mono text-stone-700">
+                        {row.party.creditDays} days
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono tabular-nums text-stone-700 whitespace-nowrap">
+                        {formatINR(row.billAmount)}
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono tabular-nums font-bold text-red-700 whitespace-nowrap">
+                        {formatINR(row.pendingAmount)}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <StatusText
+                          label={`+${row.overdueDays}d overdue (${row.ageDays}d age)`}
+                          tone="danger"
+                        />
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-stone-700">
+                        {row.party.assignedUserName}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-right">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onAddFollowUp(row.party);
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-[#C2410C] bg-orange-50 hover:bg-[#EA580C] hover:text-white border border-orange-200 rounded-lg transition-colors"
+                        >
+                          <Plus className="w-3 h-3" />
+                          <span>Follow-up</span>
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <PaginationBar
+              page={safeOverduePage}
+              totalPages={overdueTotalPages}
+              totalItems={filteredOverdueBills.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={setOverduePage}
+            />
+          </MotionCard>
+        )
+      ) : paged.length === 0 ? (
         <EmptyState
           icon={PhoneCall}
           title="No follow-ups match your filters"

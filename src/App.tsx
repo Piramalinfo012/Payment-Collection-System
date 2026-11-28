@@ -1579,6 +1579,9 @@ export default function App() {
             <FollowUpsView
               followUps={scopedWorkspace.followUps}
               parties={enrichedScopedParties}
+              invoices={scopedInvoices}
+              payments={scopedWorkspace.payments}
+              creditNotes={scopedCreditNotes}
               users={scopedWorkspace.users}
               isAdmin={currentUser.role === 'Admin'}
               onAddFollowUp={(party) => {
