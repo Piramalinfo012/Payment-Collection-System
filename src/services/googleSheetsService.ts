@@ -156,6 +156,61 @@ function rekeyAppsScriptRows(
   });
 }
 
+export async function fetchUsersFromAppsScript(
+  scriptUrl: string
+): Promise<User[]> {
+  const validation = validateAppsScriptUrl(scriptUrl);
+  if (!validation.valid) {
+    throw new Error(validation.error);
+  }
+  const base = scriptUrl.trim();
+  const sep = base.includes('?') ? '&' : '?';
+  const res = await fetch(`${base}${sep}sheetName=USER`);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch USER sheet (HTTP ${res.status})`);
+  }
+  const json = await res.json();
+  const rows: Array<Record<string, unknown>> = rekeyAppsScriptRows(json.rows || []);
+  return rows
+    .filter((row) => row.userId || row.userName || row.name)
+    .map((row, idx) => {
+      const userId = String(row.userId || row.id || `USR-${idx + 1}`).trim();
+      const name = String(row.userName || row.name || userId).trim();
+      const email = String(
+        row.email ||
+          row.userEmail ||
+          `${userId.toLowerCase().replace(/[^a-z0-9]/g, '')}@piramalpetroleum.com`
+      ).trim();
+      const role: UserRole = String(row.role || 'Collection User')
+        .toLowerCase()
+        .includes('admin')
+        ? 'Admin'
+        : 'Collection User';
+      const password = String(row.userPassword || row.password || '').trim();
+
+      return {
+        id: userId,
+        name,
+        email,
+        role,
+        phone: String(row.phone || row.mobile || ''),
+        designation: String(
+          row.designation ||
+            (role === 'Admin' ? 'Administrator' : 'Collection Officer')
+        ),
+        active: true,
+        canRecordPayment: true,
+        monthlyTarget: parseAmount(String(row.monthlyTarget || '')) || 1500000,
+        password,
+        demoPin: password,
+        createdAt: String(
+          row.craetedDateAndTime || row.createdDateAndTime || formatSheetTimestamp()
+        ),
+        pageAccess: parsePageAccess(String(row.pageAccess || ''), role),
+      };
+    });
+}
+
 export async function fetchWorkspaceFromAppsScript(
   scriptUrl: string,
   fallbackUsers: User[]
@@ -264,86 +319,23 @@ export async function fetchWorkspaceFromAppsScript(
       });
   }
 
-  // Collect real Designated Associates from FOLLOW UP, SETUP1, PARTY MASTER, Data Response
-  const associateNames = new Set<string>();
-  const collectAssociate = (val: unknown) => {
-    const s = String(val || '').trim();
-    if (!s || s === '-' || s.toLowerCase() === 'na' || /^\d+\s*days?$/i.test(s)) return;
-    associateNames.add(s);
-  };
-  followUpSheetRows.forEach((r) => collectAssociate(r.designatedAssociate));
-  setup1Rows.forEach((r) => collectAssociate(r.designatedAssociate));
-  partyMasterRows.forEach((r) => collectAssociate(r.designatedAssociate));
-  dataResponseRows.forEach((r) => collectAssociate(r.designatedAssociate));
-
-  const baseUsers: User[] =
-    parsedUsers.length > 0
-      ? [...parsedUsers]
-      : [
-          fallbackUsers[0] || {
-            id: 'USR-ADMIN',
-            name: 'Rajesh Piramal',
-            email: 'info@piramalpetroleum.com',
-            role: 'Admin',
-            phone: '+91 98200 11001',
-            designation: 'Director – Credit & Recovery',
-            active: true,
-            canRecordPayment: true,
-            monthlyTarget: 6000000,
-            password: '1234',
-            demoPin: '1234',
-            pageAccess: 'ALL',
-          },
-        ];
-
-  associateNames.forEach((assocName) => {
-    const exists = baseUsers.some(
-      (u) => u.name.trim().toLowerCase() === assocName.toLowerCase()
-    );
-    if (!exists) {
-      const slug = assocName.toLowerCase().replace(/[^a-z0-9]/g, '');
-      baseUsers.push({
-        id: `USR-${slug.slice(0, 8).toUpperCase()}`,
-        name: assocName,
-        email: `${slug}@piramalpetroleum.com`,
-        role: 'Collection User',
-        phone: '',
-        designation: 'Recovery Executive',
-        active: true,
-        canRecordPayment: true,
-        monthlyTarget: 2000000,
-        password: '1234',
-        demoPin: '1234',
-        pageAccess: [
-          'dashboard',
-          'my_outstanding',
-          'follow_ups',
-          'commitments',
-          'payment_recovery',
-          'interest_management',
-          'call_history',
-          'calendar',
-          'reports',
-          'user_performance',
-          'settings',
-        ],
-      });
-    }
-  });
-
-  const activeUsers = baseUsers;
-  const userSheetHasRows = parsedUsers.length > 0 || associateNames.size > 0;
+  const activeUsers: User[] = parsedUsers.length > 0 ? parsedUsers : fallbackUsers;
+  const userSheetHasRows = parsedUsers.length > 0;
 
   const resolveUserId = (rawAssignee: unknown): string => {
     const s = String(rawAssignee || '').trim().toLowerCase();
-    if (!s) return activeUsers[0]?.id || 'USR-ADMIN';
-    const matched = activeUsers.find(
+    if (!s) return activeUsers[0]?.id || '';
+    const exact = activeUsers.find(
       (u) =>
         u.name.toLowerCase() === s ||
         u.id.toLowerCase() === s ||
         u.email.toLowerCase() === s
     );
-    return matched ? matched.id : activeUsers[0]?.id || 'USR-ADMIN';
+    if (exact) return exact.id;
+    const partial = activeUsers.find(
+      (u) => s.includes(u.name.toLowerCase()) || s.includes(u.id.toLowerCase())
+    );
+    return partial ? partial.id : activeUsers[0]?.id || '';
   };
 
   // Lookup maps from PARTY MASTER, SETUP, SETUP1

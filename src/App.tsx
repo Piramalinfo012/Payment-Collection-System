@@ -62,6 +62,7 @@ import {
   calculateInterestAmount,
   callAppsScriptApi,
   ensureUserSheetInSpreadsheet,
+  fetchUsersFromAppsScript,
   fetchWorkspaceFromAppsScript,
   fetchWorkspaceFromGoogleSheet,
   formatSheetTimestamp,
@@ -133,10 +134,8 @@ export default function App() {
     [todayISO]
   );
 
-  // Core Application State (100% Real Live Sheet Data — no mock records)
-  const [users, setUsers] = useState<User[]>(() =>
-    initialData.users.filter((u) => u.role === 'Admin')
-  );
+  // Core Application State (100% Real Live Sheet Data — no mock records or bypass users)
+  const [users, setUsers] = useState<User[]>([]);
   const [parties, setParties] = useState<Party[]>([]);
   const [payments, setPayments] = useState<PaymentReceipt[]>([]);
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
@@ -241,6 +240,11 @@ export default function App() {
   // Auto-connect to live Apps Script on launch if URL is configured
   useEffect(() => {
     if (defaultScriptUrl && integration.mode === 'sandbox') {
+      fetchUsersFromAppsScript(defaultScriptUrl)
+        .then((sheetUsers) => {
+          if (sheetUsers.length > 0) setUsers(sheetUsers);
+        })
+        .catch(() => {});
       handleConnectAppsScript(defaultScriptUrl);
     }
   }, []);

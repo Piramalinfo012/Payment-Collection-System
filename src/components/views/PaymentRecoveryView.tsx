@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { IndianRupee, Plus, Search } from 'lucide-react';
-import { motion } from 'motion/react';
+import { IndianRupee, Plus, Search, X } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import {
   DerivedCommitment,
   PaymentMode,
@@ -51,6 +51,23 @@ export function PaymentRecoveryView({
     'ALL' | 'Tally' | 'Manual' | 'Follow-up (Unverified)'
   >('ALL');
   const [page, setPage] = useState(1);
+  const [selectedReceiptParty, setSelectedReceiptParty] = useState<{
+    partyCode: string;
+    partyName: string;
+  } | null>(null);
+
+  const selectedPartyReceipts = useMemo(() => {
+    if (!selectedReceiptParty) return [];
+    const targetName = selectedReceiptParty.partyName.trim().toLowerCase();
+    return payments
+      .filter(
+        (r) =>
+          (selectedReceiptParty.partyCode &&
+            r.partyCode === selectedReceiptParty.partyCode) ||
+          (targetName && r.partyName.trim().toLowerCase() === targetName)
+      )
+      .sort((a, b) => b.receivedDate.localeCompare(a.receivedDate));
+  }, [payments, selectedReceiptParty]);
 
   const userMap = new Map(users.map((u) => [u.id, u.name]));
   const thisMonth = resolveDateRange('this_month', todayISO);
@@ -264,7 +281,12 @@ export function PaymentRecoveryView({
                 {paged.map((p) => (
                   <tr
                     key={p.id}
-                    onClick={() => onSelectPartyByCode(p.partyCode)}
+                    onClick={() =>
+                      setSelectedReceiptParty({
+                        partyCode: p.partyCode,
+                        partyName: p.partyName,
+                      })
+                    }
                     className="hover:bg-orange-50/50 cursor-pointer transition-colors"
                   >
                     <td className="px-4 py-3 whitespace-nowrap font-medium text-stone-900">
@@ -328,6 +350,134 @@ export function PaymentRecoveryView({
           />
         </MotionCard>
       )}
+
+      {/* Party Payment Receipts Only Drawer (Kab-Kab Kitna Payment Aaya) */}
+      <AnimatePresence>
+        {selectedReceiptParty && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            onClick={() => setSelectedReceiptParty(null)}
+            className="fixed inset-0 z-40 flex justify-end bg-stone-950/45 backdrop-blur-[1px]"
+            role="dialog"
+            aria-modal="true"
+          >
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ duration: 0.25, ease: EASE_OUT_EXPO }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-3xl bg-white h-full shadow-2xl border-l border-[#EAE2D9] flex flex-col"
+            >
+              <div className="px-6 py-5 bg-[#1C1917] text-white flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <span className="text-xs font-mono text-orange-300">
+                    {selectedReceiptParty.partyCode || 'Payment History'}
+                  </span>
+                  <h3 className="text-lg font-bold text-white mt-0.5 truncate">
+                    {selectedReceiptParty.partyName}
+                  </h3>
+                  <p className="text-xs text-stone-300 mt-1">
+                    Complete Payment Receipt History ({selectedPartyReceipts.length} receipts)
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedReceiptParty(null)}
+                  className="p-1.5 text-stone-300 hover:text-white rounded-lg hover:bg-white/10"
+                  aria-label="Close payment history"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="px-6 py-4 bg-[#FAF6F1] border-b border-[#EAE2D9] grid grid-cols-3 gap-3">
+                <div className="p-3 rounded-xl bg-white border border-[#EAE2D9]">
+                  <span className="text-[11px] text-stone-500 block">Total Received</span>
+                  <span className="text-base font-bold font-mono tabular-nums text-emerald-700">
+                    {formatINR(
+                      selectedPartyReceipts.reduce((s, r) => s + r.receivedAmount, 0)
+                    )}
+                  </span>
+                </div>
+                <div className="p-3 rounded-xl bg-white border border-[#EAE2D9]">
+                  <span className="text-[11px] text-stone-500 block">Tally Verified</span>
+                  <span className="text-base font-bold font-mono tabular-nums text-stone-900">
+                    {formatINR(
+                      selectedPartyReceipts
+                        .filter((r) => r.source === 'Tally')
+                        .reduce((s, r) => s + r.receivedAmount, 0)
+                    )}
+                  </span>
+                </div>
+                <div className="p-3 rounded-xl bg-white border border-[#EAE2D9]">
+                  <span className="text-[11px] text-stone-500 block">Total Receipts</span>
+                  <span className="text-base font-bold font-mono tabular-nums text-[#C2410C]">
+                    {selectedPartyReceipts.length}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6">
+                <div className="border border-[#EAE2D9] rounded-xl overflow-hidden">
+                  <table className="w-full text-xs">
+                    <thead className="bg-[#FAF6F1] border-b border-[#EAE2D9] text-stone-600">
+                      <tr>
+                        <th className="text-left px-3.5 py-2.5 font-semibold">Date</th>
+                        <th className="text-left px-3.5 py-2.5 font-semibold">Voucher / UTR</th>
+                        <th className="text-left px-3.5 py-2.5 font-semibold">Mode &amp; Bank</th>
+                        <th className="text-left px-3.5 py-2.5 font-semibold">Status</th>
+                        <th className="text-right px-3.5 py-2.5 font-semibold">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#F4ECE3] bg-white">
+                      {selectedPartyReceipts.map((r) => (
+                        <tr key={r.id} className="hover:bg-orange-50/40">
+                          <td className="px-3.5 py-2.5 whitespace-nowrap font-medium text-stone-900">
+                            {formatDateDisplay(r.receivedDate)}
+                          </td>
+                          <td className="px-3.5 py-2.5 font-mono text-stone-700">
+                            <div>{r.voucherRef}</div>
+                            <div className="text-[11px] text-stone-400">{r.utrNumber}</div>
+                          </td>
+                          <td className="px-3.5 py-2.5 text-stone-700">
+                            <div>{r.paymentMode}</div>
+                            <div className="text-[11px] text-stone-400">{r.bankDetails}</div>
+                          </td>
+                          <td className="px-3.5 py-2.5 whitespace-nowrap">
+                            <StatusText
+                              label={
+                                r.source === 'Tally'
+                                  ? 'Tally Verified'
+                                  : r.source === 'Follow-up (Unverified)'
+                                  ? 'Tally Unverified'
+                                  : 'Manual Entry'
+                              }
+                              tone={
+                                r.source === 'Tally'
+                                  ? 'success'
+                                  : r.source === 'Follow-up (Unverified)'
+                                  ? 'warning'
+                                  : 'info'
+                              }
+                            />
+                          </td>
+                          <td className="px-3.5 py-2.5 text-right font-mono tabular-nums font-bold text-emerald-700 whitespace-nowrap">
+                            {formatINR(r.receivedAmount)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

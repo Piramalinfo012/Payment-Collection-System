@@ -49,25 +49,28 @@ export function LoginScreen({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setLocalError(null);
+    if (users.length === 0) {
+      setLocalError('Loading USER sheet credentials... Please try again in a moment.');
+      return;
+    }
     const q = identifier.trim().toLowerCase();
     const matched = users.find(
       (u) =>
         u.id.toLowerCase() === q ||
         u.name.toLowerCase() === q ||
-        u.email.toLowerCase() === q ||
-        (q === 'admin' && (u.role === 'Admin' || u.id.toLowerCase() === 'usr-admin'))
+        u.email.toLowerCase() === q
     );
     if (!matched) {
-      setLocalError('No staff account found for this User ID, Name, or Email.');
+      setLocalError('No staff account found in USER sheet for this User ID, Name, or Email.');
       return;
     }
     if (!matched.active) {
       setLocalError('This account has been deactivated by an Administrator.');
       return;
     }
-    const expectedPwd = matched.password || matched.demoPin || '1234';
-    if (password.trim() !== expectedPwd && password.trim() !== 'Admin123') {
-      setLocalError('Incorrect password / PIN. Please verify your USER sheet credentials.');
+    const expectedPwd = (matched.password || '').trim();
+    if (!expectedPwd || password.trim() !== expectedPwd) {
+      setLocalError('Incorrect password. Please verify your USER sheet credentials.');
       return;
     }
     try {
@@ -243,33 +246,6 @@ export function LoginScreen({
 
               {/* Credentials Form */}
               <form onSubmit={handleSubmit} className="mt-5 space-y-3.5">
-                {/* Quick Demo Fill Pills */}
-                <div className="flex items-center gap-2 p-2 rounded-xl bg-orange-50/70 border border-orange-100 text-[11px]">
-                  <span className="font-semibold text-[#EA580C]">Quick Login:</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIdentifier('Admin');
-                      setPassword('1234');
-                      setLocalError(null);
-                    }}
-                    className="px-2 py-0.5 rounded-md bg-white border border-orange-200 text-stone-700 font-medium hover:bg-orange-500 hover:text-white transition-colors"
-                  >
-                    Director / Admin
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIdentifier('USR-02');
-                      setPassword('1234');
-                      setLocalError(null);
-                    }}
-                    className="px-2 py-0.5 rounded-md bg-white border border-orange-200 text-stone-700 font-medium hover:bg-orange-500 hover:text-white transition-colors"
-                  >
-                    Officer
-                  </button>
-                </div>
-
                 <div>
                   <label
                     htmlFor="login-identifier"
