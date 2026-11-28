@@ -51,9 +51,30 @@ export function FollowUpsView({
 
   const userMap = new Map(users.map((u) => [u.id, u.name]));
 
-  const filtered = useMemo(() => {
+  const partyLookup = useMemo(() => {
+    const byCode = new Map<string, EnrichedParty>();
+    const byName = new Map<string, EnrichedParty>();
+    for (const p of parties) {
+      if (p.customerCode) byCode.set(p.customerCode.trim().toLowerCase(), p);
+      if (p.partyName) byName.set(p.partyName.trim().toLowerCase(), p);
+    }
+    return { byCode, byName };
+  }, [parties]);
+
+  const uniqueFollowUpPartiesCount = useMemo(() => {
+    const keys = new Set<string>();
+    for (const f of followUps) {
+      const codeKey = f.partyCode.trim().toLowerCase();
+      const nameKey = f.partyName.trim().toLowerCase();
+      const matched = partyLookup.byCode.get(codeKey) || partyLookup.byName.get(nameKey);
+      keys.add(matched ? matched.customerCode.trim().toLowerCase() : codeKey || nameKey);
+    }
+    return keys.size;
+  }, [followUps, partyLookup]);
+
+  const groupedFollowUps = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return [...followUps]
+    const sorted = [...followUps]
       .filter((f) => {
         if (
           q &&
@@ -73,11 +94,37 @@ export function FollowUpsView({
           `${a.followUpDate} ${a.followUpTime}`
         )
       );
-  }, [followUps, search, statusFilter, userFilter, dateFilter]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    const grouped = new Map<
+      string,
+      { latest: FollowUp; logCount: number; matchedParty?: EnrichedParty }
+    >();
+    for (const f of sorted) {
+      const codeKey = f.partyCode.trim().toLowerCase();
+      const nameKey = f.partyName.trim().toLowerCase();
+      const matchedParty =
+        partyLookup.byCode.get(codeKey) || partyLookup.byName.get(nameKey);
+      const key = matchedParty
+        ? matchedParty.customerCode.trim().toLowerCase()
+        : codeKey || nameKey;
+
+      const existing = grouped.get(key);
+      if (!existing) {
+        grouped.set(key, { latest: f, logCount: 1, matchedParty });
+      } else {
+        existing.logCount += 1;
+      }
+    }
+
+    return Array.from(grouped.values());
+  }, [followUps, search, statusFilter, userFilter, dateFilter, partyLookup]);
+
+  const totalPages = Math.max(1, Math.ceil(groupedFollowUps.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
-  const paged = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const paged = groupedFollowUps.slice(
+    (safePage - 1) * PAGE_SIZE,
+    safePage * PAGE_SIZE
+  );
 
   const statusTone = (status: FollowUp['status']) => {
     if (
@@ -357,7 +404,7 @@ export function FollowUpsView({
               setOverduePage(1);
             }}
             options={[
-              { id: 'logs', label: `Follow-up Logs (${followUps.length})` },
+              { id: 'logs', label: `Follow-up Logs (${uniqueFollowUpPartiesCount})` },
               {
                 id: 'overdue_bills',
                 label: `Overdue Follow up (${overdueBills.length})`,
@@ -566,16 +613,15 @@ export function FollowUpsView({
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#F4ECE3]">
-                {paged.map((f) => {
-                  const matchedParty = parties.find(
-                    (p) =>
-                      p.customerCode === f.partyCode ||
-                      p.partyName.trim().toLowerCase() === f.partyName.trim().toLowerCase()
-                  );
+                {paged.map(({ latest: f, logCount, matchedParty }) => {
                   return (
                   <tr
-                    key={f.id}
-                    onClick={() => onSelectPartyByCode(f.partyCode)}
+                    key={matchedParty ? matchedParty.customerCode : f.id}
+                    onClick={() =>
+                      onSelectPartyByCode(
+                        matchedParty ? matchedParty.customerCode : f.partyCode
+                      )
+                    }
                     className="hover:bg-orange-50/50 cursor-pointer transition-colors"
                   >
                     <td className="px-4 py-3 whitespace-nowrap">
@@ -587,8 +633,15 @@ export function FollowUpsView({
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="font-semibold text-stone-900">
-                        {f.partyName}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-semibold text-stone-900">
+                          {f.partyName}
+                        </span>
+                        {logCount > 1 && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-orange-50 text-[#C2410C] border border-orange-200/70">
+                            {logCount} logs
+                          </span>
+                        )}
                       </div>
                       <div className="text-[11px] font-mono text-stone-400">
                         {f.partyCode} · {f.contactPerson}
@@ -634,7 +687,7 @@ export function FollowUpsView({
           <PaginationBar
             page={safePage}
             totalPages={totalPages}
-            totalItems={filtered.length}
+            totalItems={groupedFollowUps.length}
             pageSize={PAGE_SIZE}
             onPageChange={setPage}
           />
