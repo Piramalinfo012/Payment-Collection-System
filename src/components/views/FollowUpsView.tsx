@@ -320,7 +320,7 @@ export function FollowUpsView({
                   return (
                   <tr
                     key={f.id}
-                    onClick={() => onSelectPartyByCode(matchedParty?.customerCode || f.partyCode)}
+                    onClick={() => onSelectPartyByCode(f.partyCode)}
                     className="hover:bg-orange-50/50 cursor-pointer transition-colors"
                   >
                     <td className="px-4 py-3 whitespace-nowrap">

@@ -573,31 +573,10 @@ export default function App() {
 
   const openPartyByCode = useCallback(
     (code: string) => {
-      let found = enrichedScopedParties.find((p) => p.customerCode === code);
-      if (!found) {
-        const refFu = followUps.find((f) => f.partyCode === code);
-        const refPay = payments.find((p) => p.partyCode === code);
-        const rawName = (refFu?.partyName || refPay?.partyName || '').trim().toLowerCase();
-        if (rawName) {
-          found = enrichedScopedParties.find(
-            (p) =>
-              p.partyName.trim().toLowerCase() === rawName ||
-              p.partyName.trim().toLowerCase().includes(rawName) ||
-              rawName.includes(p.partyName.trim().toLowerCase())
-          );
-        }
-      }
-      if (found) {
-        openPartyProfile(found);
-      } else {
-        notify(
-          'info',
-          'Party Details Unavailable',
-          'This party is either not in your assigned ledger or not yet mapped in PARTY MASTER.'
-        );
-      }
+      const found = enrichedScopedParties.find((p) => p.customerCode === code);
+      if (found) openPartyProfile(found);
     },
-    [enrichedScopedParties, followUps, payments, openPartyProfile, notify]
+    [enrichedScopedParties, openPartyProfile]
   );
 
   // Global search results (strictly RBAC-scoped)
