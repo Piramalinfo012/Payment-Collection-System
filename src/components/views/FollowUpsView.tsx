@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { CalendarClock, CheckCircle2, Clock, IndianRupee, PhoneCall, Plus, Search } from 'lucide-react';
+import { CalendarClock, CheckCircle2, Clock, FileText, IndianRupee, PhoneCall, Plus, Search } from 'lucide-react';
 import { motion } from 'motion/react';
 import {
   CreditNoteRecord,
@@ -99,12 +99,13 @@ export function FollowUpsView({
     const rows: Array<{
       id: string;
       party: EnrichedParty;
-      vchNo: string;
-      billDate: string;
-      billAmount: number;
-      pendingAmount: number;
-      ageDays: number;
-      overdueDays: number;
+      overdueBillsCount: number;
+      vchNos: string[];
+      oldestBillDate: string;
+      totalBillAmount: number;
+      totalPendingAmount: number;
+      maxAgeDays: number;
+      maxOverdueDays: number;
     }> = [];
 
     parties.forEach((party) => {
@@ -140,23 +141,31 @@ export function FollowUpsView({
         party.creditDays
       );
 
-      fifo.items.forEach((item) => {
-        if (item.isOverdue && item.pendingAmount > 0) {
-          rows.push({
-            id: `${party.customerCode}-${item.invoice.id}`,
-            party,
-            vchNo: item.invoice.vchNo,
-            billDate: item.invoice.date,
-            billAmount: item.invoice.amount,
-            pendingAmount: item.pendingAmount,
-            ageDays: item.ageDays,
-            overdueDays: item.overdueDays,
-          });
-        }
-      });
+      const partyOverdueItems = fifo.items.filter(
+        (item) => item.isOverdue && item.pendingAmount > 0
+      );
+      if (partyOverdueItems.length > 0) {
+        rows.push({
+          id: party.customerCode,
+          party,
+          overdueBillsCount: partyOverdueItems.length,
+          vchNos: partyOverdueItems.map((i) => i.invoice.vchNo),
+          oldestBillDate: partyOverdueItems[0].invoice.date,
+          totalBillAmount: partyOverdueItems.reduce(
+            (s, i) => s + i.invoice.amount,
+            0
+          ),
+          totalPendingAmount: partyOverdueItems.reduce(
+            (s, i) => s + i.pendingAmount,
+            0
+          ),
+          maxAgeDays: Math.max(...partyOverdueItems.map((i) => i.ageDays)),
+          maxOverdueDays: Math.max(...partyOverdueItems.map((i) => i.overdueDays)),
+        });
+      }
     });
 
-    return rows.sort((a, b) => b.overdueDays - a.overdueDays);
+    return rows.sort((a, b) => b.maxOverdueDays - a.maxOverdueDays);
   }, [parties, invoices, payments, creditNotes]);
 
   const filteredOverdueBills = useMemo(() => {
@@ -169,7 +178,7 @@ export function FollowUpsView({
       return (
         row.party.partyName.toLowerCase().includes(q) ||
         row.party.customerCode.toLowerCase().includes(q) ||
-        row.vchNo.toLowerCase().includes(q)
+        row.vchNos.some((v) => v.toLowerCase().includes(q))
       );
     });
   }, [overdueBills, search, userFilter]);
@@ -442,13 +451,11 @@ export function FollowUpsView({
               <table className="w-full text-xs">
                 <thead className="bg-[#FAF6F1] border-b border-[#EAE2D9] text-stone-600">
                   <tr>
-                    <th className="text-left px-4 py-3 font-semibold">Bill Date</th>
-                    <th className="text-left px-4 py-3 font-semibold">Vch No.</th>
                     <th className="text-left px-4 py-3 font-semibold">Party</th>
+                    <th className="text-left px-4 py-3 font-semibold">Overdue Bills</th>
                     <th className="text-right px-4 py-3 font-semibold">Credit Period</th>
-                    <th className="text-right px-4 py-3 font-semibold">Bill Amt</th>
-                    <th className="text-right px-4 py-3 font-semibold">Pending Amt (FIFO)</th>
-                    <th className="text-left px-4 py-3 font-semibold">Overdue Status</th>
+                    <th className="text-right px-4 py-3 font-semibold">Overdue Amt (FIFO)</th>
+                    <th className="text-left px-4 py-3 font-semibold">Max Overdue</th>
                     <th className="text-left px-4 py-3 font-semibold">Officer</th>
                     <th className="text-right px-4 py-3 font-semibold">Action</th>
                   </tr>
@@ -460,12 +467,6 @@ export function FollowUpsView({
                       onClick={() => onSelectPartyByCode(row.party.customerCode)}
                       className="hover:bg-orange-50/50 cursor-pointer transition-colors"
                     >
-                      <td className="px-4 py-3 whitespace-nowrap font-mono text-stone-700">
-                        {formatDateDisplay(row.billDate)}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap font-mono font-semibold text-stone-900">
-                        {row.vchNo}
-                      </td>
                       <td className="px-4 py-3">
                         <div className="font-semibold text-stone-900">
                           {row.party.partyName}
@@ -474,18 +475,25 @@ export function FollowUpsView({
                           {row.party.customerCode}
                         </div>
                       </td>
+                      <td className="px-4 py-3">
+                        <div className="font-semibold text-stone-900">
+                          {row.overdueBillsCount} {row.overdueBillsCount === 1 ? 'Bill' : 'Bills'}
+                        </div>
+                        <div className="text-[11px] font-mono text-stone-500">
+                          {row.vchNos[0]}
+                          {row.vchNos.length > 1 ? ` +${row.vchNos.length - 1} more` : ''} · Since{' '}
+                          {formatDateDisplay(row.oldestBillDate)}
+                        </div>
+                      </td>
                       <td className="px-4 py-3 text-right whitespace-nowrap font-mono text-stone-700">
                         {row.party.creditDays} days
                       </td>
-                      <td className="px-4 py-3 text-right font-mono tabular-nums text-stone-700 whitespace-nowrap">
-                        {formatINR(row.billAmount)}
-                      </td>
                       <td className="px-4 py-3 text-right font-mono tabular-nums font-bold text-red-700 whitespace-nowrap">
-                        {formatINR(row.pendingAmount)}
+                        {formatINR(row.totalPendingAmount)}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <StatusText
-                          label={`+${row.overdueDays}d overdue (${row.ageDays}d age)`}
+                          label={`+${row.maxOverdueDays}d overdue (${row.maxAgeDays}d age)`}
                           tone="danger"
                         />
                       </td>
@@ -493,17 +501,30 @@ export function FollowUpsView({
                         {row.party.assignedUserName}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-right">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onAddFollowUp(row.party);
-                          }}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-[#C2410C] bg-orange-50 hover:bg-[#EA580C] hover:text-white border border-orange-200 rounded-lg transition-colors"
-                        >
-                          <Plus className="w-3 h-3" />
-                          <span>Follow-up</span>
-                        </button>
+                        <div className="inline-flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelectPartyByCode(row.party.customerCode);
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-stone-700 bg-white hover:bg-stone-100 border border-[#E2D8CE] rounded-lg transition-colors"
+                          >
+                            <FileText className="w-3 h-3" />
+                            <span>Bill Details</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onAddFollowUp(row.party);
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-[#C2410C] bg-orange-50 hover:bg-[#EA580C] hover:text-white border border-orange-200 rounded-lg transition-colors"
+                          >
+                            <Plus className="w-3 h-3" />
+                            <span>Follow-up</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
