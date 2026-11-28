@@ -71,7 +71,7 @@ export function InterestManagementView({
   const [vchNo, setVchNo] = useState('');
   const [selectedPartyCode, setSelectedPartyCode] = useState('');
   const [partyName, setPartyName] = useState('');
-  const [ratePct, setRatePct] = useState('1');
+  const [ratePct, setRatePct] = useState('1.25');
   const [rateBasis, setRateBasis] = useState<InterestRateBasis>('monthly');
   const [numberOfDays, setNumberOfDays] = useState('30');
   const [invoiceAmount, setInvoiceAmount] = useState('');
@@ -81,6 +81,28 @@ export function InterestManagementView({
   const [invoiceQuery, setInvoiceQuery] = useState('');
   const [partyDropdownOpen, setPartyDropdownOpen] = useState(false);
   const [partyQuery, setPartyQuery] = useState('');
+
+  const computeOverdueDaysForInvoice = (inv: {
+    date: string;
+    partyCode: string;
+    partyName: string;
+    creditDays?: number;
+  }): number => {
+    const pNorm = inv.partyName.trim().toLowerCase();
+    const matchedParty = parties.find(
+      (p) =>
+        p.customerCode === inv.partyCode ||
+        (pNorm && p.partyName.trim().toLowerCase() === pNorm)
+    );
+    const creditDays = matchedParty?.creditDays ?? inv.creditDays ?? 30;
+    const invTime = new Date(inv.date).getTime();
+    if (Number.isNaN(invTime)) return 0;
+    const ageDays = Math.max(
+      0,
+      Math.floor((Date.now() - invTime) / (1000 * 60 * 60 * 24))
+    );
+    return Math.max(0, ageDays - creditDays);
+  };
 
   // Pre-fill when navigated from Party Detail Drawer
   useEffect(() => {
@@ -97,9 +119,13 @@ export function InterestManagementView({
       setSelectedPartyCode(inv.partyCode);
       setPartyName(inv.partyName);
       setInvoiceAmount(String(inv.amount || inv.pendingAmount || ''));
+      if (!existing) {
+        const overdueDays = computeOverdueDaysForInvoice(inv);
+        if (overdueDays > 0) setNumberOfDays(String(overdueDays));
+      }
     }
     if (existing) {
-      setRatePct(String(existing.ratePct || 1));
+      setRatePct(String(existing.ratePct || 1.25));
       setRateBasis(existing.rateBasis);
       setNumberOfDays(String(existing.numberOfDays || 30));
       if (!inv) {
@@ -110,22 +136,26 @@ export function InterestManagementView({
       setEditingRowIndex(existing.sheetRowIndex);
     }
     onClearInitialVoucher?.();
-  }, [initialVoucherNo, invoices, interestUpdates, onClearInitialVoucher]);
+  }, [initialVoucherNo, invoices, interestUpdates, parties, onClearInitialVoucher]);
 
   const handleSelectInvoice = (selectedVch: string) => {
     setVchNo(selectedVch);
     setEditingRowIndex(undefined);
     const inv = invoices.find((i) => i.vchNo === selectedVch);
+    const existing = [...interestUpdates]
+      .reverse()
+      .find((u) => u.vchNo.toLowerCase() === selectedVch.toLowerCase());
     if (inv) {
       setSelectedPartyCode(inv.partyCode);
       setPartyName(inv.partyName);
       setInvoiceAmount(String(inv.pendingAmount || inv.amount || ''));
+      if (!existing) {
+        const overdueDays = computeOverdueDaysForInvoice(inv);
+        if (overdueDays > 0) setNumberOfDays(String(overdueDays));
+      }
     }
-    const existing = [...interestUpdates]
-      .reverse()
-      .find((u) => u.vchNo.toLowerCase() === selectedVch.toLowerCase());
     if (existing) {
-      setRatePct(String(existing.ratePct || 1));
+      setRatePct(String(existing.ratePct || 1.25));
       setRateBasis(existing.rateBasis);
       setNumberOfDays(String(existing.numberOfDays || 30));
       if (existing.invoiceAmount > 0 && !inv) {

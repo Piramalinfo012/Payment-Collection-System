@@ -30,6 +30,7 @@ import {
   buildPartyTimelineEntry,
   computePartyFifoLedger,
 } from '../../services/recoveryEngine';
+import { calculateInterestAmount } from '../../services/googleSheetsService';
 import { StatusText } from '../ui/CommonUI';
 import { EASE_OUT_EXPO } from '../ui/MotionPrimitives';
 import { PremiumSelect } from '../ui/PremiumSelect';
@@ -73,6 +74,7 @@ export function PartyDetailDrawer({
   const [billFilter, setBillFilter] = useState<
     'all' | 'overdue' | 'pending' | 'paid'
   >('all');
+  const [defaultRatePct, setDefaultRatePct] = useState<number>(1.25);
 
   const userMap = new Map(users.map((u) => [u.id, u.name]));
   const normPartyName = (party?.partyName || '').trim().toLowerCase();
@@ -133,16 +135,41 @@ export function PartyDetailDrawer({
   const totalSalesAmount = partyInvoices.reduce((sum, inv) => sum + inv.amount, 0);
   const totalCreditNoteAmount = partyCreditNotes.reduce((sum, cn) => sum + cn.amount, 0);
   const totalReceivedAmount = partyPayments.reduce((sum, p) => sum + p.receivedAmount, 0);
-  const totalInterestAmount = partyInvoices.reduce((sum, inv) => {
-    const intRule = latestInterestByVch.get(inv.vchNo.trim().toLowerCase());
-    return sum + (intRule?.calculatedInterest || 0);
-  }, 0);
 
   const fifoLedger = computePartyFifoLedger(
     partyInvoices,
     totalReceivedAmount,
     totalCreditNoteAmount,
     party?.creditDays ?? 30
+  );
+
+  const getBillInterestAmount = (item: (typeof fifoLedger.items)[number]): {
+    amount: number;
+    isAuto: boolean;
+  } => {
+    const intRule = latestInterestByVch.get(
+      item.invoice.vchNo.trim().toLowerCase()
+    );
+    if (intRule) {
+      return { amount: intRule.calculatedInterest, isAuto: false };
+    }
+    if (item.isOverdue && item.overdueDays > 0 && item.pendingAmount > 0) {
+      return {
+        amount: calculateInterestAmount(
+          item.pendingAmount,
+          defaultRatePct,
+          'monthly',
+          item.overdueDays
+        ),
+        isAuto: true,
+      };
+    }
+    return { amount: 0, isAuto: false };
+  };
+
+  const totalInterestAmount = fifoLedger.items.reduce(
+    (sum, item) => sum + getBillInterestAmount(item).amount,
+    0
   );
 
   const filteredFifoItems = fifoLedger.items.filter((item) => {
@@ -692,9 +719,22 @@ export function PartyDetailDrawer({
                             </button>
                           ))}
                         </div>
-                        <span className="text-[11px] text-stone-500">
-                          FIFO Rule: Oldest bills adjusted first against bulk payments &amp; credit notes
-                        </span>
+                        <div className="flex items-center gap-2 text-[11px] text-stone-600">
+                          <span className="whitespace-nowrap">Auto Overdue Rate:</span>
+                          <PremiumSelect
+                            ariaLabel="Auto overdue interest rate"
+                            value={String(defaultRatePct)}
+                            onChange={(val) => setDefaultRatePct(Number(val))}
+                            searchable={false}
+                            className="w-28"
+                            options={[
+                              { value: '1', label: '1% / mo' },
+                              { value: '1.25', label: '1.25% / mo' },
+                              { value: '1.5', label: '1.5% / mo' },
+                              { value: '2', label: '2% / mo' },
+                            ]}
+                          />
+                        </div>
                       </div>
 
                       <div className="border border-[#EAE2D9] rounded-xl overflow-x-auto">
@@ -802,7 +842,20 @@ export function PartyDetailDrawer({
                                       )}
                                     </td>
                                     <td className="px-3 py-2.5 text-right font-mono tabular-nums font-semibold text-[#C2410C] whitespace-nowrap">
-                                      {intRule ? formatINR(intRule.calculatedInterest) : '₹0'}
+                                      {(() => {
+                                        const info = getBillInterestAmount(item);
+                                        if (info.amount <= 0) return '₹0';
+                                        return (
+                                          <div>
+                                            <div>{formatINR(info.amount)}</div>
+                                            {info.isAuto && (
+                                              <div className="text-[10px] font-normal text-stone-500">
+                                                {item.overdueDays}d @ {defaultRatePct}%
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })()}
                                     </td>
                                   </tr>
                                 );
