@@ -137,15 +137,35 @@ export default function App() {
     [todayISO]
   );
 
+  // Instant cache hydration from last synced real Google Sheets data
+  const cachedLive = useMemo(() => {
+    try {
+      const raw = window.localStorage.getItem('pppl_live_cache_v1');
+      if (!raw) return null;
+      return JSON.parse(raw) as {
+        users?: User[];
+        parties?: Party[];
+        payments?: PaymentReceipt[];
+        followUps?: FollowUp[];
+        syncLogs?: TallySyncLog[];
+        invoices?: InvoiceRecord[];
+        creditNotes?: CreditNoteRecord[];
+        interestUpdates?: InterestUpdateEntry[];
+      };
+    } catch {
+      return null;
+    }
+  }, []);
+
   // Core Application State (100% Real Live Sheet Data — no mock records or bypass users)
-  const [users, setUsers] = useState<User[]>([]);
-  const [parties, setParties] = useState<Party[]>([]);
-  const [payments, setPayments] = useState<PaymentReceipt[]>([]);
-  const [followUps, setFollowUps] = useState<FollowUp[]>([]);
-  const [syncLogs, setSyncLogs] = useState<TallySyncLog[]>([]);
-  const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
-  const [creditNotes, setCreditNotes] = useState<CreditNoteRecord[]>([]);
-  const [interestUpdates, setInterestUpdates] = useState<InterestUpdateEntry[]>([]);
+  const [users, setUsers] = useState<User[]>(() => cachedLive?.users ?? []);
+  const [parties, setParties] = useState<Party[]>(() => cachedLive?.parties ?? []);
+  const [payments, setPayments] = useState<PaymentReceipt[]>(() => cachedLive?.payments ?? []);
+  const [followUps, setFollowUps] = useState<FollowUp[]>(() => cachedLive?.followUps ?? []);
+  const [syncLogs, setSyncLogs] = useState<TallySyncLog[]>(() => cachedLive?.syncLogs ?? []);
+  const [invoices, setInvoices] = useState<InvoiceRecord[]>(() => cachedLive?.invoices ?? []);
+  const [creditNotes, setCreditNotes] = useState<CreditNoteRecord[]>(() => cachedLive?.creditNotes ?? []);
+  const [interestUpdates, setInterestUpdates] = useState<InterestUpdateEntry[]>(() => cachedLive?.interestUpdates ?? []);
   const [interestPreFillVch, setInterestPreFillVch] = useState<string>('');
 
   // Auth & Role State (persisted across page refresh)
@@ -722,6 +742,37 @@ export default function App() {
       setInterestUpdates(data.interestUpdates);
       setSyncLogs(data.syncLogs);
       if (data.userSheetHasRows) setUsers(data.users);
+
+      try {
+        window.localStorage.setItem(
+          'pppl_live_cache_v1',
+          JSON.stringify({
+            users: data.userSheetHasRows ? data.users : users,
+            parties: data.parties,
+            payments: data.payments,
+            followUps: data.followUps,
+            syncLogs: data.syncLogs,
+            invoices: data.invoices,
+            creditNotes: data.creditNotes,
+            interestUpdates: data.interestUpdates,
+          })
+        );
+      } catch {
+        try {
+          window.localStorage.setItem(
+            'pppl_live_cache_v1',
+            JSON.stringify({
+              users: data.userSheetHasRows ? data.users : users,
+              parties: data.parties,
+              followUps: data.followUps,
+              creditNotes: data.creditNotes,
+              interestUpdates: data.interestUpdates,
+            })
+          );
+        } catch {
+          // Ignore storage quota errors
+        }
+      }
 
       setIntegration((prev) => ({
         ...prev,

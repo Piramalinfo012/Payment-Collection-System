@@ -232,22 +232,45 @@ export async function fetchWorkspaceFromAppsScript(
   }
 
   const trimmedUrl = scriptUrl.trim();
-  const urlWithParam = trimmedUrl.includes('?')
-    ? `${trimmedUrl}&all=true`
-    : `${trimmedUrl}?all=true`;
+  const separator = trimmedUrl.includes('?') ? '&' : '?';
+  const targetTabs = [
+    'USER',
+    'PARTY MASTER',
+    'SETUP1',
+    'AGING DATA',
+    'FOLLOW UP',
+    'Follow up Data',
+    'SALES DATA',
+    'RECEIPT REGISTER',
+    'CREDIT NOTE',
+    'Interest Update',
+  ];
 
-  const res = await fetch(urlWithParam);
-  if (!res.ok) {
-    throw new Error(`Apps Script responded with HTTP ${res.status}`);
+  const fetchTab = async (tabName: string): Promise<[string, Array<Record<string, unknown>>]> => {
+    try {
+      const res = await fetch(`${trimmedUrl}${separator}sheetName=${encodeURIComponent(tabName)}`);
+      if (!res.ok) return [tabName, []];
+      const json = await res.json();
+      if (json && json.success && Array.isArray(json.rows)) {
+        return [String(json.sheetName || tabName), json.rows];
+      }
+      return [tabName, []];
+    } catch {
+      return [tabName, []];
+    }
+  };
+
+  const tabResults = await Promise.all(targetTabs.map(fetchTab));
+  const rawSheets: Record<string, Array<Record<string, unknown>>> = {};
+  for (const [name, rows] of tabResults) {
+    if (rows.length > 0) {
+      rawSheets[name] = rows;
+    }
   }
-
-  const json = await res.json();
-  if (!json.success && json.error) {
-    throw new Error(String(json.error));
-  }
-
-  const rawSheets: Record<string, Array<Record<string, unknown>>> = json.sheets || {};
   const sheetNames = Object.keys(rawSheets);
+  if (sheetNames.length === 0) {
+    throw new Error('Could not fetch any sheet tabs from Apps Script');
+  }
 
   // Helper to find sheet rows case-insensitively (exact match first, then partial)
   const getSheetRows = (name: string): Array<Record<string, unknown>> => {
