@@ -761,7 +761,7 @@ export function InterestManagementView({
                     <th className="text-left px-4 py-3 font-semibold">Party Name</th>
                     <th className="text-left px-4 py-3 font-semibold">Timestamp</th>
                     <th className="text-left px-4 py-3 font-semibold">Interest Rate</th>
-                    <th className="text-right px-4 py-3 font-semibold">Days</th>
+                    <th className="text-right px-4 py-3 font-semibold">Aging Days</th>
                     <th className="text-right px-4 py-3 font-semibold">Invoice Amount</th>
                     <th className="text-right px-4 py-3 font-semibold">Interest (₹)</th>
                     <th className="text-right px-4 py-3 font-semibold">Total Payable</th>
