@@ -88,6 +88,8 @@ export function DashboardView({
     positiveIsGood?: boolean;
     icon: React.ElementType;
     accentClass: string;
+    topBarClass: string;
+    surfaceClass: string;
     targetSection: NavSection;
   }> = [
     {
@@ -97,7 +99,9 @@ export function DashboardView({
       ),
       comparisonLabel: `${metrics.totalActivePartiesCount} active ledger accounts`,
       icon: Wallet,
-      accentClass: 'text-[#C2410C] bg-orange-50',
+      accentClass: 'text-[#C2410C] bg-orange-100/80 ring-orange-200/60',
+      topBarClass: 'from-[#EA580C] to-amber-400',
+      surfaceClass: 'from-white via-white to-orange-50/45 hover:border-orange-300',
       targetSection:
         currentUser.role === 'Admin' ? 'all_parties' : 'my_outstanding',
     },
@@ -113,7 +117,9 @@ export function DashboardView({
       deltaPct: metrics.collectionGrowthPct,
       positiveIsGood: true,
       icon: IndianRupee,
-      accentClass: 'text-emerald-700 bg-emerald-50',
+      accentClass: 'text-emerald-700 bg-emerald-100/80 ring-emerald-200/60',
+      topBarClass: 'from-emerald-500 to-teal-400',
+      surfaceClass: 'from-white via-white to-emerald-50/45 hover:border-emerald-300',
       targetSection: 'payment_recovery',
     },
     {
@@ -125,7 +131,9 @@ export function DashboardView({
       deltaPct: metrics.todaysGrowthPct,
       positiveIsGood: true,
       icon: TrendingUp,
-      accentClass: 'text-[#EA580C] bg-orange-50',
+      accentClass: 'text-[#EA580C] bg-orange-100/80 ring-orange-200/60',
+      topBarClass: 'from-amber-400 to-orange-500',
+      surfaceClass: 'from-white via-white to-amber-50/45 hover:border-amber-300',
       targetSection: 'payment_recovery',
     },
     {
@@ -135,7 +143,9 @@ export function DashboardView({
       ),
       comparisonLabel: `${metrics.overdueSharePct.toFixed(1)}% of total outstanding`,
       icon: AlertTriangle,
-      accentClass: 'text-red-700 bg-red-50',
+      accentClass: 'text-red-700 bg-red-100/80 ring-red-200/60',
+      topBarClass: 'from-red-500 to-rose-400',
+      surfaceClass: 'from-white via-white to-red-50/45 hover:border-red-300',
       targetSection:
         currentUser.role === 'Admin' ? 'all_parties' : 'my_outstanding',
     },
@@ -149,7 +159,9 @@ export function DashboardView({
       ),
       comparisonLabel: `of ${metrics.totalActivePartiesCount} active accounts`,
       icon: Building2,
-      accentClass: 'text-stone-700 bg-[#F3ECE4]',
+      accentClass: 'text-stone-700 bg-stone-100 ring-stone-200/70',
+      topBarClass: 'from-stone-500 to-stone-400',
+      surfaceClass: 'from-white via-white to-stone-50/70 hover:border-stone-300',
       targetSection:
         currentUser.role === 'Admin' ? 'all_parties' : 'my_outstanding',
     },
@@ -163,7 +175,9 @@ export function DashboardView({
       ),
       comparisonLabel: 'Logged & scheduled calls for today',
       icon: PhoneCall,
-      accentClass: 'text-[#EA580C] bg-orange-50',
+      accentClass: 'text-[#EA580C] bg-orange-100/80 ring-orange-200/60',
+      topBarClass: 'from-[#EA580C] to-orange-400',
+      surfaceClass: 'from-white via-white to-orange-50/45 hover:border-orange-300',
       targetSection: 'follow_ups',
     },
     {
@@ -188,8 +202,16 @@ export function DashboardView({
       icon: CalendarCheck,
       accentClass:
         metrics.overdueCommitmentsCount > 0
-          ? 'text-amber-700 bg-amber-50'
-          : 'text-emerald-700 bg-emerald-50',
+          ? 'text-amber-700 bg-amber-100/80 ring-amber-200/60'
+          : 'text-blue-700 bg-blue-100/80 ring-blue-200/60',
+      topBarClass:
+        metrics.overdueCommitmentsCount > 0
+          ? 'from-amber-500 to-orange-400'
+          : 'from-blue-500 to-indigo-400',
+      surfaceClass:
+        metrics.overdueCommitmentsCount > 0
+          ? 'from-white via-white to-amber-50/45 hover:border-amber-300'
+          : 'from-white via-white to-blue-50/45 hover:border-blue-300',
       targetSection: 'follow_ups',
     },
     {
@@ -207,7 +229,9 @@ export function DashboardView({
         metrics.recoveryPercentage - metrics.prevMonthRecoveryPercentage,
       positiveIsGood: true,
       icon: Percent,
-      accentClass: 'text-emerald-700 bg-emerald-50',
+      accentClass: 'text-emerald-700 bg-emerald-100/80 ring-emerald-200/60',
+      topBarClass: 'from-emerald-500 to-green-400',
+      surfaceClass: 'from-white via-white to-emerald-50/45 hover:border-emerald-300',
       targetSection: 'reports',
     },
   ];
@@ -303,14 +327,15 @@ export function DashboardView({
               whileHover={{ y: -3 }}
               whileTap={{ scale: 0.99 }}
               onClick={() => onNavigate(card.targetSection)}
-              className="relative overflow-hidden text-left bg-white border border-[#EAE2D9]/90 hover:border-orange-300 shadow-[0_4px_20px_-14px_rgba(28,25,23,0.12)] hover:shadow-[0_14px_28px_-16px_rgba(234,88,12,0.35)] rounded-2xl p-5 transition-all group"
+              className={`relative overflow-hidden text-left bg-gradient-to-br border border-[#EAE2D9]/90 shadow-[0_4px_20px_-14px_rgba(28,25,23,0.12)] hover:shadow-[0_14px_28px_-16px_rgba(234,88,12,0.32)] rounded-2xl p-5 transition-all group ${card.surfaceClass}`}
             >
+              <div className={`absolute top-0 inset-x-0 h-1 bg-gradient-to-r ${card.topBarClass}`} />
               <div className="flex items-start justify-between gap-3">
                 <span className="text-xs font-semibold text-stone-500 tracking-wide">
                   {card.title}
                 </span>
                 <div
-                  className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ring-1 ring-black/5 transition-transform duration-200 group-hover:scale-110 ${card.accentClass}`}
+                  className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ring-1 transition-transform duration-200 group-hover:scale-110 ${card.accentClass}`}
                 >
                   <Icon className="w-4 h-4" />
                 </div>
