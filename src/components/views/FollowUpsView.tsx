@@ -115,27 +115,6 @@ export function FollowUpsView({
 
   return (
     <div className="space-y-4">
-      <MotionCard className="bg-white border border-[#EAE2D9] rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-[0_4px_20px_-14px_rgba(28,25,23,0.1)]">
-        <div>
-          <h2 className="text-base font-bold text-stone-900">
-            Payment Follow-up Management
-          </h2>
-          <p className="text-xs text-stone-500 mt-0.5">
-            Track customer outreach, discussion notes, and promised payment dates
-          </p>
-        </div>
-        <motion.button
-          type="button"
-          whileTap={{ scale: 0.97 }}
-          transition={{ duration: 0.14, ease: EASE_OUT_EXPO }}
-          onClick={() => onAddFollowUp()}
-          className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-[#EA580C] hover:bg-[#C2410C] rounded-xl shadow-[0_6px_14px_-6px_rgba(234,88,12,0.5)] whitespace-nowrap shrink-0"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Add Follow-up</span>
-        </motion.button>
-      </MotionCard>
-
       {/* 4 Small Summary Count Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
         <MotionCard
