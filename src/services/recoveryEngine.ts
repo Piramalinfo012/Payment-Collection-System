@@ -53,9 +53,7 @@ export function scopeDataForUser(
   return {
     parties: assignedParties,
     payments: data.payments.filter((pay) => assignedPartyCodes.has(pay.partyCode)),
-    followUps: data.followUps.filter(
-      (fu) => assignedPartyCodes.has(fu.partyCode) || fu.userId === currentUser.id
-    ),
+    followUps: data.followUps.filter((fu) => assignedPartyCodes.has(fu.partyCode)),
     users: data.users.filter((u) => u.id === currentUser.id),
   };
 }

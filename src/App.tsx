@@ -113,10 +113,12 @@ interface NavItemConfig {
   label: string;
   icon: React.ElementType;
   adminOnly?: boolean;
+  nonAdminOnly?: boolean;
 }
 
 const NAV_ITEMS: NavItemConfig[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'my_outstanding', label: 'My Parties', icon: Building2, nonAdminOnly: true },
   { id: 'all_parties', label: 'All Parties', icon: Building2, adminOnly: true },
   { id: 'follow_ups', label: 'Payment Follow-ups', icon: PhoneCall },
   { id: 'payment_recovery', label: 'Payment Recovery', icon: IndianRupee },
@@ -464,6 +466,50 @@ export default function App() {
     }
     return scopeDataForUser({ parties, payments, followUps, users }, currentUser);
   }, [currentUser, parties, payments, followUps, users]);
+
+  const scopedInvoices = useMemo(() => {
+    if (!currentUser) return [];
+    if (currentUser.role === 'Admin') return invoices;
+    const codes = new Set(scopedWorkspace.parties.map((p) => p.customerCode));
+    const names = new Set(
+      scopedWorkspace.parties.map((p) => p.partyName.trim().toLowerCase())
+    );
+    return invoices.filter(
+      (inv) =>
+        codes.has(inv.partyCode) ||
+        names.has(inv.partyName.trim().toLowerCase())
+    );
+  }, [currentUser, invoices, scopedWorkspace.parties]);
+
+  const scopedCreditNotes = useMemo(() => {
+    if (!currentUser) return [];
+    if (currentUser.role === 'Admin') return creditNotes;
+    const codes = new Set(scopedWorkspace.parties.map((p) => p.customerCode));
+    const names = new Set(
+      scopedWorkspace.parties.map((p) => p.partyName.trim().toLowerCase())
+    );
+    return creditNotes.filter(
+      (cn) =>
+        codes.has(cn.partyCode) ||
+        names.has(cn.partyName.trim().toLowerCase())
+    );
+  }, [currentUser, creditNotes, scopedWorkspace.parties]);
+
+  const scopedInterestUpdates = useMemo(() => {
+    if (!currentUser) return [];
+    if (currentUser.role === 'Admin') return interestUpdates;
+    const codes = new Set(scopedWorkspace.parties.map((p) => p.customerCode));
+    const names = new Set(
+      scopedWorkspace.parties.map((p) => p.partyName.trim().toLowerCase())
+    );
+    const vchs = new Set(scopedInvoices.map((i) => i.vchNo.trim().toLowerCase()));
+    return interestUpdates.filter(
+      (u) =>
+        (u.partyCode && codes.has(u.partyCode)) ||
+        (u.partyName && names.has(u.partyName.trim().toLowerCase())) ||
+        vchs.has(u.vchNo.trim().toLowerCase())
+    );
+  }, [currentUser, interestUpdates, scopedWorkspace.parties, scopedInvoices]);
 
   const enrichedScopedParties = useMemo(() => {
     return enrichParties(
@@ -1224,9 +1270,10 @@ export default function App() {
     );
   }
 
-  const visibleNavItems = NAV_ITEMS.filter((item) =>
-    hasPageAccess(currentUser, item.id)
-  );
+  const visibleNavItems = NAV_ITEMS.filter((item) => {
+    if (item.nonAdminOnly && currentUser.role === 'Admin') return false;
+    return hasPageAccess(currentUser, item.id);
+  });
   const currentNavMeta = NAV_ITEMS.find((n) => n.id === activeSection);
   const canRecordPayment =
     currentUser.role === 'Admin' || currentUser.canRecordPayment;
@@ -1510,7 +1557,7 @@ export default function App() {
             <FollowUpsView
               followUps={scopedWorkspace.followUps}
               parties={enrichedScopedParties}
-              users={users}
+              users={scopedWorkspace.users}
               isAdmin={currentUser.role === 'Admin'}
               onAddFollowUp={(party) => {
                 setFollowUpModalParty(party || null);
@@ -1524,7 +1571,7 @@ export default function App() {
             <CommitmentsView
               commitments={scopedCommitments}
               parties={enrichedScopedParties}
-              users={users}
+              users={scopedWorkspace.users}
               canRecordPayment={canRecordPayment}
               onSelectPartyByCode={openPartyByCode}
               onRecordPaymentForParty={(party) => {
@@ -1539,7 +1586,7 @@ export default function App() {
               payments={scopedWorkspace.payments}
               commitments={scopedCommitments}
               totalOutstanding={dashboardMetrics.totalOutstanding}
-              users={users}
+              users={scopedWorkspace.users}
               todayISO={todayISO}
               canRecordPayment={canRecordPayment}
               onOpenRecordPayment={() => {
@@ -1552,9 +1599,9 @@ export default function App() {
 
           {activeSection === 'interest_management' && (
             <InterestManagementView
-              interestUpdates={interestUpdates}
-              invoices={invoices}
-              creditNotes={creditNotes}
+              interestUpdates={scopedInterestUpdates}
+              invoices={scopedInvoices}
+              creditNotes={scopedCreditNotes}
               parties={enrichedScopedParties}
               currentUser={currentUser}
               isLiveSheet={integration.mode === 'google_sheets'}
@@ -1600,7 +1647,7 @@ export default function App() {
 
           {activeSection === 'user_performance' && (
             <UserPerformanceView
-              users={users}
+              users={scopedWorkspace.users}
               parties={scopedWorkspace.parties}
               payments={scopedWorkspace.payments}
               followUps={scopedWorkspace.followUps}
@@ -1718,10 +1765,10 @@ export default function App() {
         followUps={scopedWorkspace.followUps}
         payments={scopedWorkspace.payments}
         commitments={scopedCommitments}
-        invoices={invoices}
-        creditNotes={creditNotes}
-        interestUpdates={interestUpdates}
-        users={users}
+        invoices={scopedInvoices}
+        creditNotes={scopedCreditNotes}
+        interestUpdates={scopedInterestUpdates}
+        users={scopedWorkspace.users}
         currentUser={currentUser}
         onAddFollowUp={(p) => {
           setFollowUpModalParty(p);
