@@ -221,9 +221,9 @@ export function FollowUpModal({
               </label>
               <input
                 type="text"
-                required
                 value={contactNumber}
                 onChange={(e) => setContactNumber(e.target.value)}
+                placeholder="Optional"
                 className="w-full px-3 py-2 text-sm font-mono tabular-nums border border-[#E2D8CE] rounded-lg focus:outline-none focus:border-[#EA580C]"
               />
             </div>
