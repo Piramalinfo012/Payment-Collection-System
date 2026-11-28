@@ -148,15 +148,36 @@ export default function App() {
   const [interestUpdates, setInterestUpdates] = useState<InterestUpdateEntry[]>([]);
   const [interestPreFillVch, setInterestPreFillVch] = useState<string>('');
 
-  // Auth & Role State
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  // Auth & Role State (persisted across page refresh)
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    try {
+      const saved = window.localStorage.getItem('pppl_current_user');
+      return saved ? (JSON.parse(saved) as User) : null;
+    } catch {
+      return null;
+    }
+  });
+  useEffect(() => {
+    try {
+      if (currentUser) {
+        window.localStorage.setItem('pppl_current_user', JSON.stringify(currentUser));
+      } else {
+        window.localStorage.removeItem('pppl_current_user');
+      }
+    } catch {
+      // ignore storage unavailability
+    }
+  }, [currentUser]);
   const [googleEmail, setGoogleEmail] = useState<string | null>(null);
   const [hasGoogleToken, setHasGoogleToken] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
   // Navigation & Global Search State
-  const [activeSection, setActiveSection] = useState<NavSection>('dashboard');
+  const [activeSection, setActiveSection] = useState<NavSection>(() => {
+    const path = window.location.pathname.replace(/^\/+/, '') as NavSection;
+    return NAV_ITEMS.some((n) => n.id === path) ? path : 'dashboard';
+  });
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState('');
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
